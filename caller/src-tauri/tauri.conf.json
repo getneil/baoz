@@ -1,0 +1,53 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "caller",
+  "version": "0.1.0",
+  "identifier": "com.caller.baoz",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build:prod",
+    "frontendDist": "../build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "caller",
+        "width": 561,
+        "height": 964,
+        "devtools": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; connect-src 'self' https://cdn.jsdelivr.net; img-src 'self' asset: https://asset.localhost data:; media-src 'self' asset: https://asset.localhost blob:; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [
+      "../static/*"
+    ],
+    "fileAssociations": [
+      {
+        "ext": ["webm"],
+        "mimeType": "video/webm"
+      },
+      {
+        "ext": ["mp4"],
+        "mimeType": "video/mp4"
+      }
+    ],
+    "macOS": {
+      "infoPlist": "Info.plist",
+      "signingIdentity": "Developer ID Application: Your Name (TEAMID)"
+    }
+  }
+}
