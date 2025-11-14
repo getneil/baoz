@@ -15,6 +15,14 @@
   let status = 'Initializing…';
   const HOLD_MS = 250;
   let bothUpSince = 0;
+  // Multiperson handling
+  const CENTER_MIN = 0.3; // normalized x band [0..1]
+  const CENTER_MAX = 0.7;
+  const LOCK_MS = 5000; // soft lock duration
+  const LOCK_TOL = 0.12; // tolerance in normalized units
+  let lockAnchorX = 0;
+  let lockAnchorY = 0;
+  let lockUntil = 0;
 
   function classifyArms(results: Results): string {
     const lm = results.poseLandmarks;
@@ -77,11 +85,24 @@
         const leftUp = leftWrist && leftShoulder ? leftWrist.y < leftShoulder.y - 0.05 : false;
         const rightUp = rightWrist && rightShoulder ? rightWrist.y < rightShoulder.y - 0.05 : false;
         const now = performance.now();
+        // Compute torso center when available
+        const hasShoulders = !!(leftShoulder && rightShoulder);
+        const centerX = hasShoulders ? (leftShoulder!.x + rightShoulder!.x) / 2 : 0.5;
+        const centerY = hasShoulders ? (leftShoulder!.y + rightShoulder!.y) / 2 : 0.5;
+        const inCenterBand = centerX >= CENTER_MIN && centerX <= CENTER_MAX;
+        const inSoftLock = now < lockUntil;
+        const withinLockTol = inSoftLock
+          ? Math.abs(centerX - lockAnchorX) <= LOCK_TOL && Math.abs(centerY - lockAnchorY) <= LOCK_TOL
+          : true;
         let s = 'Arms not raised';
         if (leftUp && rightUp) {
           if (bothUpSince === 0) bothUpSince = now;
-          if (now - bothUpSince >= HOLD_MS) {
+          if (now - bothUpSince >= HOLD_MS && inCenterBand && withinLockTol) {
             s = 'Both Arms Raised';
+            // Establish/refresh soft lock when accepted
+            lockAnchorX = centerX;
+            lockAnchorY = centerY;
+            lockUntil = now + LOCK_MS;
           } else {
             s = 'Single Arm Raised';
           }
