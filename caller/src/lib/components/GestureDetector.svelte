@@ -13,6 +13,8 @@
   let pose: Pose | null = null;
 
   let status = 'Initializing…';
+  const HOLD_MS = 250;
+  let bothUpSince = 0;
 
   function classifyArms(results: Results): string {
     const lm = results.poseLandmarks;
@@ -67,7 +69,26 @@
         minTrackingConfidence: 0.5
       });
       pose.onResults((results: Results) => {
-        const s = classifyArms(results);
+        const lm = results.poseLandmarks;
+        const leftWrist = lm?.[POSE_LANDMARKS.LEFT_WRIST];
+        const rightWrist = lm?.[POSE_LANDMARKS.RIGHT_WRIST];
+        const leftShoulder = lm?.[POSE_LANDMARKS.LEFT_SHOULDER];
+        const rightShoulder = lm?.[POSE_LANDMARKS.RIGHT_SHOULDER];
+        const leftUp = leftWrist && leftShoulder ? leftWrist.y < leftShoulder.y - 0.05 : false;
+        const rightUp = rightWrist && rightShoulder ? rightWrist.y < rightShoulder.y - 0.05 : false;
+        const now = performance.now();
+        let s = 'Arms not raised';
+        if (leftUp && rightUp) {
+          if (bothUpSince === 0) bothUpSince = now;
+          if (now - bothUpSince >= HOLD_MS) {
+            s = 'Both Arms Raised';
+          } else {
+            s = 'Single Arm Raised';
+          }
+        } else {
+          bothUpSince = 0;
+          if (leftUp || rightUp) s = 'Single Arm Raised';
+        }
         status = s;
         dispatch('status', s);
         draw(results);

@@ -139,3 +139,14 @@ on the reels the draw is displayed as an image, in the middle of the reel. there
 1. Game - controls the game states, and gesture detection
 2. Reel (3 Reels) - displays the items
 3. Item - items from spinner_items table
+
+## State Optimizations
+
+- [x] Add 1s cooldown for "both arms raised" rising-edge detection in `+page.svelte`.
+- [x] Add markers or instruction in the text above to "raise" or "lower" the arms depending on the cooldown. use the `raiseText` variable enclose in a span that blinks red white when asking user to lower the arms.
+- [x] Pause `requestAnimationFrame` loop in `Reel.svelte` when reel `phase` is "idle" or "stopped"; resume only during "spinning"/"decel"/"bounce".
+- [x] Reuse `rising` boolean in `+page.svelte` instead of repeating `isBoth && !wasBoth` for clarity and consistency.
+- [x] Extract a `clearTimers()` helper in `+page.svelte` and call it across reactive blocks to DRY timer cleanup.
+- [x] Centralize prize timer start logic in a single place (prefer the "ensure timers" reactive block) to avoid duplication.
+- [x] Optional: Add a minimal hold-time (≈200–300ms) in `GestureDetector.svelte` before emitting "Both Arms Raised" to reduce flicker.
+- [ ] Optional: Consider a mapping-based state transition table in `Game.svelte` for readability (low priority).

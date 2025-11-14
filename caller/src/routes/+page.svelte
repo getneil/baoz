@@ -10,6 +10,8 @@
   let gestureStatus: string = "Detecting…";
   let actionSignal = 0;
   let wasBoth = false;
+  const COOLDOWN_MS = 1000;
+  let lastBothAt = 0;
   let phase: "Idle" | "Spinning" | "Stop1" | "Stop2" | "Stop3" | "Result" =
     "Idle";
   let matchCount: 0 | 2 | 3 = 0;
@@ -26,6 +28,7 @@
   $: isPrize = phase === "Stop3" && matchCount >= 2;
   $: isTryAgain = phase === "Stop3" && matchCount < 2;
   let preferMp4 = false;
+  let lowerBlink = false;
   // Speed control (1..5)
   let speedLevel = 4; // default matching current feel
   // Map: 1->0.30, 2->0.70, 3->0.80, 4->0.90, 5->1.00
@@ -60,40 +63,7 @@
       window.removeEventListener("keydown", onKey);
     };
   });
-  function onGesture(e: CustomEvent<string>) {
-    gestureStatus = e.detail;
-    const isBoth = gestureStatus.toLowerCase().includes("both arms");
-    // Block gestures when at Stop3 with a prize; wait until Idle
-    if (phase === "Stop3" && matchCount >= 2) {
-      wasBoth = isBoth;
-      return;
-    }
-    // From Stop3 with no prize, a rising edge should restart the game
-    if (phase === "Stop3" && matchCount < 2 && isBoth && !wasBoth) {
-      phase = "Spinning";
-      showGame = true;
-      actionSignal += 1;
-      wasBoth = isBoth;
-      return;
-    }
-    // From Idle, a rising edge of both-arms should mount the game and trigger start
-    if (phase === "Idle" && isBoth && !wasBoth) {
-      // Switch out of Idle first so the Idle reactive block won't auto-hide the game
-      phase = "Spinning";
-      showGame = true;
-      actionSignal += 1;
-      wasBoth = isBoth;
-      return;
-    }
-    if (isBoth && !wasBoth) {
-      actionSignal += 1;
-    }
-    wasBoth = isBoth;
-  }
-
-  // Reset visibility and timers when a new round starts
-  $: if (phase === "Spinning" || phase === "Stop1" || phase === "Stop2") {
-    showGame = true;
+  function clearTimers() {
     if (resultTimer) {
       clearTimeout(resultTimer);
       resultTimer = null;
@@ -106,6 +76,65 @@
       clearInterval(nextTick);
       nextTick = null;
     }
+  }
+  function onGesture(e: CustomEvent<string>) {
+    gestureStatus = e.detail;
+    const isBoth = gestureStatus.toLowerCase().includes("both arms");
+    const rising = isBoth && !wasBoth;
+    // Cooldown: ignore rising edges within COOLDOWN_MS
+    if (rising) {
+      const now = Date.now();
+      if (now - lastBothAt < COOLDOWN_MS) {
+        wasBoth = isBoth;
+        // During cooldown, instruct to lower arms
+        lowerBlink = true;
+        raiseText = "lower arms";
+        return;
+      }
+      lastBothAt = now;
+    }
+    // Block gestures when at Stop3 with a prize; wait until Idle
+    if (phase === "Stop3" && matchCount >= 2) {
+      wasBoth = isBoth;
+      return;
+    }
+    // From Stop3 with no prize, a rising edge should restart the game
+    if (phase === "Stop3" && matchCount < 2 && rising) {
+      phase = "Spinning";
+      showGame = true;
+      actionSignal += 1;
+      wasBoth = isBoth;
+      return;
+    }
+    // From Idle, a rising edge of both-arms should mount the game and trigger start
+    if (phase === "Idle" && rising) {
+      // Switch out of Idle first so the Idle reactive block won't auto-hide the game
+      phase = "Spinning";
+      showGame = true;
+      actionSignal += 1;
+      wasBoth = isBoth;
+      return;
+    }
+    if (rising) {
+      actionSignal += 1;
+    }
+    wasBoth = isBoth;
+    // Update instruction text based on cooldown window
+    const now2 = Date.now();
+    const inCooldown = now2 - lastBothAt < COOLDOWN_MS;
+    if (inCooldown) {
+      raiseText = "lower arms";
+      lowerBlink = true;
+    } else {
+      raiseText = "raise arms";
+      lowerBlink = false;
+    }
+  }
+
+  // Reset visibility and timers when a new round starts
+  $: if (phase === "Spinning" || phase === "Stop1" || phase === "Stop2") {
+    showGame = true;
+    clearTimers();
     validSeconds = 300;
     nextSeconds = 30;
   }
@@ -118,18 +147,7 @@
   // On Idle, hide the game and reset timers
   $: if (phase === "Idle") {
     showGame = false;
-    if (resultTimer) {
-      clearTimeout(resultTimer);
-      resultTimer = null;
-    }
-    if (validTick) {
-      clearInterval(validTick);
-      validTick = null;
-    }
-    if (nextTick) {
-      clearInterval(nextTick);
-      nextTick = null;
-    }
+    clearTimers();
     validSeconds = 300;
     nextSeconds = 30;
   }
@@ -139,26 +157,6 @@
     resultTimer = setTimeout(() => {
       showGame = false;
       resultTimer = null;
-      // Start prize timers once the prize screen is shown
-      if (!validTick) {
-        validTick = setInterval(() => {
-          if (validSeconds > 0) validSeconds -= 1;
-          else {
-            clearInterval(validTick!);
-            validTick = null;
-          }
-        }, 1000);
-      }
-      if (!nextTick) {
-        nextTick = setInterval(() => {
-          if (nextSeconds > 0) nextSeconds -= 1;
-          else {
-            clearInterval(nextTick!);
-            nextTick = null;
-            phase = "Idle";
-          }
-        }, 1000);
-      }
     }, 2000);
   }
 
@@ -190,6 +188,8 @@
     const s = total % 60;
     return `${m}:${s.toString().padStart(2, "0")}`;
   }
+
+  let raiseText = "raise arms";
 </script>
 
 <main class="home">
@@ -198,9 +198,9 @@
       <h1 class="brand">BAOZ</h1>
       <div class="tagline">
         {#if ["Spinning", "Stop1", "Stop2"].includes(phase)}
-          <div style="margin-top: 20px">raise arms again to stop a reel</div>
+          <div style="margin-top: 20px"><span class={lowerBlink ? 'blink' : ''}>{raiseText}</span> again to stop a reel</div>
         {:else if phase === "Stop3" && matchCount < 2}
-          <div class="try-again-message">raise arms to try again</div>
+          <div class="try-again-message"><span class={lowerBlink ? 'blink' : ''}>{raiseText}</span> to try again</div>
         {:else if phase === "Idle"}
           <div>Win Free Food or Discounts</div>
           <div style="font-size: 16px;">
@@ -444,6 +444,16 @@
     color: white;
     text-align: center;
     font-family: Arial, Helvetica, sans-serif;
+  }
+
+  /* Blink indicator for cooldown instruction */
+  .blink {
+    animation: blink-colors 1s step-start infinite;
+    font-weight: 800;
+  }
+  @keyframes blink-colors {
+    0%, 50% { color: #ff4d4f; }
+    51%, 100% { color: #ffffff; }
   }
 
   /* Speed indicator */

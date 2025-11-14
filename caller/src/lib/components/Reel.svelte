@@ -97,13 +97,13 @@
         if (spin && phase === "idle") {
             baseSpeed = (3 + Math.random() * 7) * Math.max(0.1, speedScale); // 3-10 ips scaled
             phase = "spinning";
-            
+            startRAF();
         }
         if (spin && !stop && phase === "stopped") {
             // restarting from stopped
             baseSpeed = (3 + Math.random() * 7) * Math.max(0.1, speedScale); // scaled
             phase = "spinning";
-            
+            startRAF();
         }
         if (stop && phase === "spinning") {
             // Short ease-out-back bounce to current center
@@ -114,10 +114,12 @@
             decelStart = performance.now();
             decelDuration = 220; // quick bounce
             phase = "bounce";
+            startRAF();
         }
         if (!spin && !stop && phase !== "idle") {
             // reset if both are false
             phase = "idle";
+            stopRAF();
         }
         // Ensure when stop is true and not spinning, snap to current center
         if (stop && !spin && (phase === "idle" || phase === "stopped")) {
@@ -135,6 +137,7 @@
                 image_url: "",
             };
             dispatch("stopped", { centerIndex, item });
+            stopRAF();
         }
     })();
 
@@ -172,6 +175,7 @@
                         image_url: "",
                     };
                     dispatch("stopped", { centerIndex, item });
+                    stopRAF();
                 }
             } else if (phase === "bounce") {
                 const t = Math.min(1, (now - decelStart) / decelDuration);
@@ -191,30 +195,50 @@
                         image_url: "",
                     };
                     dispatch("stopped", { centerIndex, item });
+                    stopRAF();
                 }
             }
         }
         lastTime = now;
-        raf = requestAnimationFrame(tick);
+        if (phase === "spinning" || phase === "decel" || phase === "bounce") {
+            raf = requestAnimationFrame(tick);
+        } else {
+            stopRAF();
+        }
     }
 
     let lastTime = performance.now();
+    function startRAF() {
+        if (!raf) {
+            lastTime = performance.now();
+            raf = requestAnimationFrame(tick);
+        }
+    }
+    function stopRAF() {
+        if (raf) {
+            cancelAnimationFrame(raf);
+            raf = 0;
+        }
+    }
+
     onMount(() => {
         lastTime = performance.now();
-        raf = requestAnimationFrame(tick);
+        if (phase === "spinning" || phase === "decel" || phase === "bounce") {
+            startRAF();
+        }
         updateSizes();
         try {
             ro = new ResizeObserver(updateSizes);
             if (reelEl) ro.observe(reelEl);
         } catch {}
         return () => {
-            cancelAnimationFrame(raf);
+            stopRAF();
             try {
                 ro?.disconnect();
             } catch {}
         };
     });
-    onDestroy(() => cancelAnimationFrame(raf));
+    onDestroy(() => stopRAF());
 
     // Choose video codec per platform
     let preferMp4 = false;
