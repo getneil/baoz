@@ -18,6 +18,7 @@
   let showGame = true;
   let resultTimer: ReturnType<typeof setTimeout> | null = null;
   let tryAgainTimer: ReturnType<typeof setTimeout> | null = null;
+  let noPrizeTimer: ReturnType<typeof setTimeout> | null = null;
   let drawCode = "";
   let winningImage = "";
   let winningId = "";
@@ -68,6 +69,10 @@
     if (resultTimer) {
       clearTimeout(resultTimer);
       resultTimer = null;
+    }
+    if (noPrizeTimer) {
+      clearTimeout(noPrizeTimer);
+      noPrizeTimer = null;
     }
     if (tryAgainTimer) {
       clearTimeout(tryAgainTimer);
@@ -144,11 +149,6 @@
     nextSeconds = 30;
   }
 
-  // On Stop3 with no prize (match < 2), hide the game immediately to show try-again UI
-  $: if (phase === "Stop3" && matchCount < 2) {
-    showGame = false;
-  }
-
   // When we reach Stop3 with no prize, start a 10s timer to auto-reset back to Idle
   $: if (phase === "Stop3" && matchCount < 2 && !tryAgainTimer) {
     tryAgainTimer = setTimeout(() => {
@@ -168,12 +168,20 @@
     nextSeconds = 30;
   }
 
-  // When we reach Stop3 and have a 2- or 3-match, wait 5s then fade out game
+  // When we reach Stop3 and have a 2- or 3-match, wait before hiding the game
   $: if (phase === "Stop3" && matchCount >= 2 && showGame && !resultTimer) {
     resultTimer = setTimeout(() => {
       showGame = false;
       resultTimer = null;
-    }, 2000);
+    }, 3000);
+  }
+
+  // When we reach Stop3 with no prize, wait before hiding the game (showing try-again)
+  $: if (phase === "Stop3" && matchCount < 2 && showGame && !noPrizeTimer) {
+    noPrizeTimer = setTimeout(() => {
+      showGame = false;
+      noPrizeTimer = null;
+    }, 3000);
   }
 
   // Ensure prize timers are running whenever we're at Stop3 with a prize
@@ -214,13 +222,13 @@
       <h1 class="brand">BAOZ</h1>
       <div class="tagline">
         {#if ["Spinning", "Stop1", "Stop2"].includes(phase)}
-          <div style="margin-top: 20px"><span class={lowerBlink ? 'blink' : ''}>{raiseText}</span> again to stop a reel</div>
+          <div class="spinning" style="margin-top: 20px"><span class={lowerBlink ? 'blink' : ''}>{raiseText}</span> again to stop a reel</div>
         {:else if phase === "Stop3" && matchCount < 2}
           <div class="try-again-message"><span class={lowerBlink ? 'blink' : ''}>{raiseText}</span> to try again</div>
         {:else if phase === "Idle"}
-          <div>Win Free Food or Discounts</div>
-          <div style="font-size: 16px;">
-            just raise your arms, match 2 or 3 in the middle to win
+          <div class="idle">Win Free Food or Discounts</div>
+          <div style="font-size: 30px;">
+            just <b>raise your arms</b>, <br/> match 2 or 3 items in the middle to win
           </div>
         {/if}
       </div>
@@ -270,7 +278,7 @@
         <div class="result-view" transition:fade={{ duration: 500 }}>
           {#if matchCount === 2}
             <div class="result-won">
-              Match 2! <br /> You get a consolation prize
+              You Matched 2 items! <br /> You get a consolation prize
             </div>
             <div class="consolation-prize">PHP 5 OFF</div>
           {:else if matchCount === 3}
@@ -322,12 +330,18 @@
 <style>
   .home {
     min-height: 100vh;
-    display: grid;
-    place-items: center;
+    height: 1360px;
     overflow-x: hidden;
     width: 100vw;
   }
+  .tagline .idle {
+    font-size: 60px;
+  }
+  .tagline .spinning {
+    font-size: 40px;
+  }
   .card {
+    position: inherit;
     width: 100%;
   }
   .gest {
@@ -342,11 +356,14 @@
   .overlay-wrap {
     position: relative;
     width: 100%;
+    height: auto;
+    margin-top: 50px;
   }
   .hero {
-    position: fixed;
+    position: relative;
     top: 30px;
     width: 100%;
+    height: auto;
     display: grid;
     grid-template-columns: 1fr auto;
     align-items: start;
@@ -383,7 +400,9 @@
     height: auto;
   }
   .consolation-prize {
-    font-size: 60px;
+    font-size: 120px;
+    margin-top: 20px;
+    margin-bottom: 20px;
     line-height: 0.5;
     font-family: Arial, Helvetica, sans-serif;
   }
@@ -391,7 +410,6 @@
     display: grid;
     place-items: center;
     gap: 12px;
-    margin-top: -100px;
   }
   .prize-img {
     width: 90vw;
@@ -449,17 +467,19 @@
   }
 
   .result-won {
-    font-size: 40px;
+    font-size: 60px;
     color: white;
     text-align: center;
     font-family: Arial, Helvetica, sans-serif;
     margin-bottom: 8px;
   }
   .prize-title {
-    font-size: 40px;
+    font-size: 100px;
     color: white;
     text-align: center;
     font-family: Arial, Helvetica, sans-serif;
+    padding-left: 20px;
+    padding-right: 20px;
   }
 
   /* Blink indicator for cooldown instruction */
