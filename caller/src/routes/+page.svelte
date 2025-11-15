@@ -17,6 +17,7 @@
   let matchCount: 0 | 2 | 3 = 0;
   let showGame = true;
   let resultTimer: ReturnType<typeof setTimeout> | null = null;
+  let tryAgainTimer: ReturnType<typeof setTimeout> | null = null;
   let drawCode = "";
   let winningImage = "";
   let winningId = "";
@@ -67,6 +68,10 @@
     if (resultTimer) {
       clearTimeout(resultTimer);
       resultTimer = null;
+    }
+    if (tryAgainTimer) {
+      clearTimeout(tryAgainTimer);
+      tryAgainTimer = null;
     }
     if (validTick) {
       clearInterval(validTick);
@@ -142,6 +147,17 @@
   // On Stop3 with no prize (match < 2), hide the game immediately to show try-again UI
   $: if (phase === "Stop3" && matchCount < 2) {
     showGame = false;
+  }
+
+  // When we reach Stop3 with no prize, start a 10s timer to auto-reset back to Idle
+  $: if (phase === "Stop3" && matchCount < 2 && !tryAgainTimer) {
+    tryAgainTimer = setTimeout(() => {
+      // Only reset to Idle if we are still in the try-again state when the timer fires
+      if (phase === "Stop3" && matchCount < 2) {
+        phase = "Idle";
+      }
+      tryAgainTimer = null;
+    }, 10000);
   }
 
   // On Idle, hide the game and reset timers
