@@ -19,6 +19,7 @@
   let resultTimer: ReturnType<typeof setTimeout> | null = null;
   let tryAgainTimer: ReturnType<typeof setTimeout> | null = null;
   let noPrizeTimer: ReturnType<typeof setTimeout> | null = null;
+  let spinInactivityTimer: ReturnType<typeof setTimeout> | null = null;
   let drawCode = "";
   let winningImage = "";
   let winningId = "";
@@ -87,6 +88,17 @@
       nextTick = null;
     }
   }
+  function resetSpinInactivityTimer() {
+    if (spinInactivityTimer) {
+      clearTimeout(spinInactivityTimer);
+    }
+    spinInactivityTimer = setTimeout(() => {
+      if (phase === "Spinning" || phase === "Stop1" || phase === "Stop2") {
+        phase = "Idle";
+      }
+      spinInactivityTimer = null;
+    }, 30000);
+  }
   function onGesture(e: CustomEvent<string>) {
     gestureStatus = e.detail;
     const isBoth = gestureStatus.toLowerCase().includes("both arms");
@@ -127,6 +139,9 @@
     }
     if (rising) {
       actionSignal += 1;
+      if (phase === "Spinning" || phase === "Stop1" || phase === "Stop2") {
+        resetSpinInactivityTimer();
+      }
     }
     wasBoth = isBoth;
     // Update instruction text based on cooldown window
@@ -147,6 +162,7 @@
     clearTimers();
     validSeconds = 300;
     nextSeconds = 30;
+    resetSpinInactivityTimer();
   }
 
   // When we reach Stop3 with no prize, start a 10s timer to auto-reset back to Idle
@@ -166,6 +182,10 @@
     clearTimers();
     validSeconds = 300;
     nextSeconds = 30;
+    if (spinInactivityTimer) {
+      clearTimeout(spinInactivityTimer);
+      spinInactivityTimer = null;
+    }
   }
 
   // When we reach Stop3 and have a 2- or 3-match, wait before hiding the game
@@ -222,13 +242,19 @@
       <h1 class="brand">BAOZ</h1>
       <div class="tagline">
         {#if ["Spinning", "Stop1", "Stop2"].includes(phase)}
-          <div class="spinning" style="margin-top: 20px"><span class={lowerBlink ? 'blink' : ''}>{raiseText}</span> again to stop a reel</div>
+          <div class="spinning" style="margin-top: 20px">
+            <span class={lowerBlink ? "blink" : ""}>{raiseText}</span> again to stop
+            a reel
+          </div>
         {:else if phase === "Stop3" && matchCount < 2}
-          <div class="try-again-message"><span class={lowerBlink ? 'blink' : ''}>{raiseText}</span> to try again</div>
+          <div class="try-again-message">
+            <span class={lowerBlink ? "blink" : ""}>{raiseText}</span> to try again
+          </div>
         {:else if phase === "Idle"}
           <div class="idle">Win Free Food or Discounts</div>
           <div style="font-size: 30px;">
-            just <b>raise your arms</b>, <br/> match 2 or 3 items in the middle to win
+            just <b>raise your arms</b>, <br /> match 2 or 3 items in the middle
+            to win
           </div>
         {/if}
       </div>
@@ -249,7 +275,14 @@
         </div>
       {:else if !showGame && phase === "Stop3" && matchCount < 2}
         <div class="result-view" transition:fade={{ duration: 500 }}>
-          <video class="idle-img" autoplay loop muted playsinline preload="auto">
+          <video
+            class="idle-img"
+            autoplay
+            loop
+            muted
+            playsinline
+            preload="auto"
+          >
             {#if preferMp4}
               <source src={`try_again.mp4`} type="video/mp4" />
             {:else}
@@ -303,6 +336,12 @@
         </div>
       {/if}
     </div>
+
+    {#if ["Spinning", "Stop1", "Stop2"].includes(phase)}
+      <footer class="footer-spinning-message">
+        Win Discount or Free Food just by matching 2 or 3 things in the middle
+      </footer>
+    {/if}
     <div class="gest">
       <GestureDetector on:status={onGesture} />
     </div>
@@ -447,6 +486,20 @@
   .footer-countdown div {
     font-size: 28px;
   }
+  .footer-spinning-message {
+    position: relative;
+    margin-top: 50px;
+    padding-left: 50px;
+    padding-right: 50px;
+    text-align: center;
+    font-size: 46px;
+    color: #fff;
+    margin-left: 0px;
+    text-shadow: 0 4px 6px rgba(0, 0, 0, 1);
+    font-family: Arial, Helvetica, sans-serif;
+    box-sizing: border-box;
+    width: 768px;
+  }
   :global(html, body) {
     overflow-x: hidden;
   }
@@ -488,8 +541,14 @@
     font-weight: 800;
   }
   @keyframes blink-colors {
-    0%, 50% { color: #ff4d4f; }
-    51%, 100% { color: #ffffff; }
+    0%,
+    50% {
+      color: #ff4d4f;
+    }
+    51%,
+    100% {
+      color: #ffffff;
+    }
   }
 
   /* Speed indicator */
